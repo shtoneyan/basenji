@@ -55,7 +55,7 @@ def main():
       help='Crop bp off each end [Default: %default]')
   parser.add_option('-i', dest='interp_nan',
       default=False, action='store_true',
-      help='Interpolate NaNs [Default: %default]') 
+      help='Interpolate NaNs [Default: %default]')
   parser.add_option('-s', dest='scale',
       default=1., type='float',
       help='Scale values by [Default: %default]')
@@ -100,74 +100,79 @@ def main():
   # open genome coverage file
   genome_cov_open = CovFace(genome_cov_file)
 
+
   # for each model sequence
   for si in range(num_seqs):
     mseq = model_seqs[si]
-
-    # read coverage
-    seq_cov_nt = genome_cov_open.read(mseq.chr, mseq.start, mseq.end)
-
-    # interpolate NaN
-    if options.interp_nan:
-      seq_cov_nt = interp_nan(seq_cov_nt)
-
-    # determine baseline coverage
-    if target_length >= 8:
-      baseline_cov = np.percentile(seq_cov_nt, 10)
-      baseline_cov = np.nan_to_num(baseline_cov)
+    #TODO:ADD OPTION TO NOT DO THIS
+    if len(mseq.chr.split('_'))>1: # ignore if alt chromosomes
+        pass
     else:
-      baseline_cov = 0
 
-    # set blacklist to baseline
-    if mseq.chr in black_chr_trees:
-      for black_interval in black_chr_trees[mseq.chr][mseq.start:mseq.end]:
-        # adjust for sequence indexes
-        black_seq_start = black_interval.begin - mseq.start
-        black_seq_end = black_interval.end - mseq.start
-        seq_cov_nt[black_seq_start:black_seq_end] = baseline_cov
+        # read coverage
+        seq_cov_nt = genome_cov_open.read(mseq.chr, mseq.start, mseq.end)
 
-    # set NaN's to baseline
-    if not options.interp_nan:
-      nan_mask = np.isnan(seq_cov_nt)
-      seq_cov_nt[nan_mask] = baseline_cov
+        # interpolate NaN
+        if options.interp_nan:
+          seq_cov_nt = interp_nan(seq_cov_nt)
 
-    # crop
-    if options.crop_bp > 0:
-      seq_cov_nt = seq_cov_nt[options.crop_bp:-options.crop_bp]
+        # determine baseline coverage
+        if target_length >= 8:
+          baseline_cov = np.percentile(seq_cov_nt, 10)
+          baseline_cov = np.nan_to_num(baseline_cov)
+        else:
+          baseline_cov = 0
 
-    # sum pool
-    seq_cov = seq_cov_nt.reshape(target_length, options.pool_width)
-    if options.sum_stat == 'sum':
-      seq_cov = seq_cov.sum(axis=1, dtype='float32')
-    elif options.sum_stat in ['mean', 'avg']:
-      seq_cov = seq_cov.mean(axis=1, dtype='float32')
-    elif options.sum_stat == 'median':
-      seq_cov = seq_cov.median(axis=1)
-    elif options.sum_stat == 'max':
-      seq_cov = seq_cov.max(axis=1)
-    elif options.sum_stat == 'peak':
-      seq_cov = seq_cov.mean(axis=1, dtype='float32')
-      seq_cov = np.clip(np.sqrt(seq_cov*4), 0, 1)
-    else:
-      print('ERROR: Unrecognized summary statistic "%s".' % options.sum_stat,
-            file=sys.stderr)
-      exit(1)
+        # set blacklist to baseline
+        if mseq.chr in black_chr_trees:
+          for black_interval in black_chr_trees[mseq.chr][mseq.start:mseq.end]:
+            # adjust for sequence indexes
+            black_seq_start = black_interval.begin - mseq.start
+            black_seq_end = black_interval.end - mseq.start
+            seq_cov_nt[black_seq_start:black_seq_end] = baseline_cov
 
-    # clip
-    if options.clip_soft is not None:
-      clip_mask = (seq_cov > options.clip_soft)
-      seq_cov[clip_mask] = options.clip_soft + np.sqrt(seq_cov[clip_mask] - options.clip_soft)
-    if options.clip is not None:
-        seq_cov = np.clip(seq_cov, 0, options.clip)
+        # set NaN's to baseline
+        if not options.interp_nan:
+          nan_mask = np.isnan(seq_cov_nt)
+          seq_cov_nt[nan_mask] = baseline_cov
 
-    # scale
-    seq_cov = options.scale * seq_cov
+        # crop
+        if options.crop_bp > 0:
+          seq_cov_nt = seq_cov_nt[options.crop_bp:-options.crop_bp]
 
-    # save
-    targets_list.append(seq_cov.astype('float16'))
+        # sum pool
+        seq_cov = seq_cov_nt.reshape(target_length, options.pool_width)
+        if options.sum_stat == 'sum':
+          seq_cov = seq_cov.sum(axis=1, dtype='float32')
+        elif options.sum_stat in ['mean', 'avg']:
+          seq_cov = seq_cov.mean(axis=1, dtype='float32')
+        elif options.sum_stat == 'median':
+          seq_cov = seq_cov.median(axis=1)
+        elif options.sum_stat == 'max':
+          seq_cov = seq_cov.max(axis=1)
+        elif options.sum_stat == 'peak':
+          seq_cov = seq_cov.mean(axis=1, dtype='float32')
+          seq_cov = np.clip(np.sqrt(seq_cov*4), 0, 1)
+        else:
+          print('ERROR: Unrecognized summary statistic "%s".' % options.sum_stat,
+                file=sys.stderr)
+          exit(1)
 
-    # write
-    # seqs_cov_open['targets'][si,:] = seq_cov.astype('float16')
+        # clip
+        if options.clip_soft is not None:
+          clip_mask = (seq_cov > options.clip_soft)
+          seq_cov[clip_mask] = options.clip_soft + np.sqrt(seq_cov[clip_mask] - options.clip_soft)
+        if options.clip is not None:
+            seq_cov = np.clip(seq_cov, 0, options.clip)
+
+        # scale
+        seq_cov = options.scale * seq_cov
+
+        # save
+        targets_list.append(seq_cov.astype('float16'))
+
+        # write
+        # seqs_cov_open['targets'][si,:] = seq_cov.astype('float16')
 
   # write all
   seqs_cov_open.create_dataset('targets', dtype='float16',
@@ -243,7 +248,7 @@ class CovFace:
       self.bed = True
       self.preprocess_bed()
 
-    elif cov_ext in ['.bw','.bigwig']:
+    elif cov_ext in ['.bw','.bigwig', '.bigWig']:
       self.cov_open = pyBigWig.open(self.cov_file, 'r')
       self.bigwig = True
 
@@ -253,7 +258,6 @@ class CovFace:
     else:
       print('Cannot identify coverage file extension "%s".' % cov_ext,
             file=sys.stderr)
-      exit(1)
 
   def preprocess_bed(self):
     # read BED

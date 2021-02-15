@@ -29,13 +29,13 @@ import subprocess
 import sys
 import tempfile
 import time
-
+import pathlib
 import h5py
 import numpy as np
 import pandas as pd
 
-from basenji import genome
-from basenji import util
+import genome
+import util
 
 try:
   import slurm
@@ -70,7 +70,7 @@ def main():
       help='Genome assembly gaps BED [Default: %default]')
   parser.add_option('-i', dest='interp_nan',
       default=False, action='store_true',
-      help='Interpolate NaNs [Default: %default]') 
+      help='Interpolate NaNs [Default: %default]')
   parser.add_option('-l', dest='seq_length',
       default=131072, type='int',
       help='Sequence length [Default: %default]')
@@ -87,7 +87,7 @@ def main():
       help='Number parallel processes [Default: %default]')
   parser.add_option('--peaks', dest='peaks_only',
       default=False, action='store_true',
-      help='Create contigs only from peaks [Default: %default]') 
+      help='Create contigs only from peaks [Default: %default]')
   parser.add_option('-r', dest='seqs_per_tfr',
       default=256, type='int',
       help='Sequences per TFRecord file [Default: %default]')
@@ -159,15 +159,17 @@ def main():
 
   # check snap
   if options.snap is not None:
-    if np.mod(options.seq_length, options.snap) != 0: 
+    if np.mod(options.seq_length, options.snap) != 0:
       raise ValueError('seq_length must be a multiple of snap')
-    if np.mod(options.stride_train, options.snap) != 0: 
+    if np.mod(options.stride_train, options.snap) != 0:
       raise ValueError('stride_train must be a multiple of snap')
     if np.mod(options.stride_test, options.snap) != 0:
       raise ValueError('stride_test must be a multiple of snap')
 
   # setup output directory
-  if os.path.isdir(options.out_dir) and not options.restart:
+  if os.path.isdir(options.out_dir) and len(os.listdir(options.out_dir)) == 0:
+      print('Output directory is {}'.format(options.out_dir))
+  elif os.path.isdir(options.out_dir) and not options.restart:
     print('Remove output directory %s or use --restart option.' % options.out_dir)
     exit(1)
   elif not os.path.isdir(options.out_dir):
@@ -181,18 +183,18 @@ def main():
   ################################################################
   if not options.restart:
     chrom_contigs = genome.load_chromosomes(fasta_file)
-
+    # print(chrom_contigs)
     # remove gaps
     if options.gaps_file:
       chrom_contigs = genome.split_contigs(chrom_contigs,
                                            options.gaps_file)
-
+    # print(chrom_contigs)
     # ditch the chromosomes for contigs
     contigs = []
     for chrom in chrom_contigs:
       contigs += [Contig(chrom, ctg_start, ctg_end)
                    for ctg_start, ctg_end in chrom_contigs[chrom]]
-
+    # print(contigs)
     # limit to a BED file
     if options.limit_bed is not None:
       contigs = limit_contigs(contigs, options.limit_bed)
@@ -204,7 +206,6 @@ def main():
 
     # filter for large enough
     contigs = [ctg for ctg in contigs if ctg.end - ctg.start >= options.seq_length]
-
     # break up large contigs
     if options.break_t is not None:
       contigs = break_large_contigs(contigs, options.break_t)
@@ -337,7 +338,7 @@ def main():
       else:
         fi = int(a[3].replace('fold',''))
       fold_mseqs[fi].append(msg)
-        
+
   ################################################################
   # read sequence coverage values
   ################################################################
@@ -349,6 +350,7 @@ def main():
 
   for ti in range(targets_df.shape[0]):
     genome_cov_file = targets_df['file'].iloc[ti]
+    print(genome_cov_file)
     seqs_cov_stem = '%s/%d' % (seqs_cov_dir, ti)
     seqs_cov_file = '%s.h5' % seqs_cov_stem
 
@@ -367,8 +369,8 @@ def main():
     if options.restart and os.path.isfile(seqs_cov_file):
       print('Skipping existing %s' % seqs_cov_file, file=sys.stderr)
     else:
-      cmd = 'basenji_data_read.py'
-      cmd += ' --crop %d' % options.crop_bp      
+      cmd = '/home/shush/profile/basenji/bin/basenji_data_read.py'
+      cmd += ' --crop %d' % options.crop_bp
       cmd += ' -w %d' % options.pool_width
       cmd += ' -u %s' % targets_df['sum_stat'].iloc[ti]
       if clip_ti is not None:
@@ -401,7 +403,7 @@ def main():
   else:
     slurm.multi_run(read_jobs, options.processes, verbose=True,
                     launch_sleep=1, update_sleep=5)
-
+  exit()
   ################################################################
   # write TF Records
   ################################################################
@@ -427,7 +429,7 @@ def main():
     while tfr_start <= fold_set_end:
       tfr_stem = '%s/%s-%d' % (tfr_dir, fold_set, tfr_i)
 
-      cmd = 'basenji_data_write.py'
+      cmd = '/home/shush/profile/basenji/bin/basenji_data_write.py'
       cmd += ' -s %d' % tfr_start
       cmd += ' -e %d' % tfr_end
       cmd += ' --umap_clip %f' % options.umap_clip
@@ -576,6 +578,7 @@ def break_large_contigs(contigs, break_t, verbose=False):
   while ctg_len > break_t:
 
     # pop largest contig
+    # print(contig_heapq)
     ctg_nlen, ctg = heapq.heappop(contig_heapq)
     ctg_len = -ctg_nlen
 
@@ -623,7 +626,7 @@ def contig_sequences(contigs, seq_length, stride, snap=1, label=None):
       # update
       seq_start += stride
       seq_end += stride
-      
+
   return mseqs
 
 
@@ -645,7 +648,7 @@ def curate_peaks(targets_df, out_dir, pool_width, crop_bp):
       chrm = a[0]
       start = int(a[1])
       end = int(a[2])
-      
+
       # extend to pool width
       length = end - start
       if length < pool_width:

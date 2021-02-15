@@ -36,10 +36,10 @@ matplotlib.use('PDF')
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from basenji import dataset
-from basenji import plots
-from basenji import seqnn
-from basenji import trainer
+import dataset
+import plots
+import seqnn
+import trainer
 
 if tf.__version__[0] == '1':
   tf.compat.v1.enable_eager_execution()
@@ -116,7 +116,7 @@ def main():
     params = json.load(params_open)
   params_model = params['model']
   params_train = params['train']
-  
+
   # construct eval data
   eval_data = dataset.SeqDataset(data_dir,
     split_label=options.split_label,

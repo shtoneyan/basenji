@@ -29,8 +29,8 @@ if tf.__version__[0] == '1':
 
 import dataset
 import seqnn
-import trainer
-# import my_trainer as trainer
+# import trainer
+import my_trainer as trainer
 import basenji_model_for_model_zoo as model_zoo
 
 """
@@ -110,8 +110,8 @@ def main():
 
     # initialize model
     # print('INITIALIZE MODEL')
-    seqnn_model = seqnn.SeqNN(params_model)
-    # seqnn_model = model_zoo.basenji_model((131072,4), 3)
+    # seqnn_model = seqnn.SeqNN(params_model)
+    seqnn_model = model_zoo.basenji_model((131072,4), 3)
 
     # restore
     if options.restore:

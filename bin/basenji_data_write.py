@@ -23,7 +23,7 @@ import pdb
 import pysam
 
 from basenji_data import ModelSeq
-from basenji.dna_io import dna_1hot, dna_1hot_index
+from dna_io import dna_1hot, dna_1hot_index
 
 import tensorflow as tf
 
